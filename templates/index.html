@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Vehicle Plate Detection</title>
+    <link href="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.css" rel="stylesheet" />
+    <style>
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: #f5f6fa;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            min-height: 100vh;
+            margin: 0;
+        }
+
+        h2 {
+            color: #2f3640;
+        }
+
+        #image-container {
+            max-width: 600px;
+            width: 100%;
+            margin: 20px 0;
+        }
+
+        img {
+            max-width: 100%;
+            border-radius: 8px;
+        }
+
+        select,
+        input[type="file"],
+        button {
+            padding: 10px 15px;
+            margin-top: 10px;
+            border-radius: 5px;
+            border: 1px solid #dcdde1;
+            font-size: 16px;
+        }
+
+        button {
+            background-color: #0097e6;
+            color: white;
+            border: none;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+
+        button:hover {
+            background-color: #40739e;
+        }
+
+        #result {
+            margin-top: 20px;
+            background: #ffffff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            min-width: 300px;
+            text-align: center;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h2>Upload and Crop Vehicle Plate</h2>
+    <input type="file" id="inputImage" accept="image/*" />
+    <div id="image-container">
+        <img id="image" style="display:none;">
+    </div>
+
+    <select id="ocrMode">
+        <option value="A">Auto OCR</option>
+        <option value="1">Single Line</option>
+        <option value="2">Two Lines</option>
+    </select>
+    <br>
+    <button id="processBtn" style="display:none;">Detect Plate</button>
+
+    <div id="result"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.js"></script>
+    <script>
+        let cropper;
+        const inputImage = document.getElementById('inputImage');
+        const image = document.getElementById('image');
+        const processBtn = document.getElementById('processBtn');
+        const resultDiv = document.getElementById('result');
+        const ocrMode = document.getElementById('ocrMode');
+
+        inputImage.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = () => {
+                image.src = reader.result;
+                image.style.display = 'block';
+                if (cropper) cropper.destroy();
+                cropper = new Cropper(image, {
+                    aspectRatio: NaN,   // free aspect ratio
+                    viewMode: 0,        // allows moving outside the image bounds
+                    dragMode: 'crop',   // allows creating and moving the crop box
+                    autoCropArea: 0.8,  // initial crop covers 80% of image
+                    movable: true,
+                    zoomable: true,
+                    scalable: true,
+                    responsive: true
+                });
+
+                processBtn.style.display = 'inline-block';
+            };
+            reader.readAsDataURL(file);
+        });
+
+        processBtn.addEventListener('click', async () => {
+            if (!cropper) return;
+            const canvas = cropper.getCroppedCanvas();
+            const dataURL = canvas.toDataURL('image/jpeg');
+
+            const formData = new FormData();
+            formData.append('cropped_image', dataURL);
+            formData.append('ocr_mode', ocrMode.value);
+
+            const response = await fetch('/process', { method: 'POST', body: formData });
+            const data = await response.json();
+
+            if (data.error) {
+                resultDiv.innerHTML = `<p style="color:red;">${data.error}</p>`;
+            } else {
+                resultDiv.innerHTML = `
+            <h3>Plate Detected</h3>
+            <p><strong>Text:</strong> ${data.text}</p>
+            <p><strong>Type:</strong> ${data.type}</p>
+        `;
+            }
+        });
+    </script>
+</body>
+
+</html>
